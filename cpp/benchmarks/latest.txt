@@ -55,7 +55,7 @@ Run 1:
   operator new[]:     0 calls
   operator delete:    0 calls
   Bytes Allocated:    0 bytes
-  Status:             INSTRUMENTED NEW/DELETE ALLOCATION INVARIANT VERIFIED
+  Status:             No instrumented global new/delete activity was observed during the measured hot path.
 
 Run 2:
   p50 Latency:        3,280 ns
@@ -69,7 +69,7 @@ Run 2:
   operator new[]:     0 calls
   operator delete:    0 calls
   Bytes Allocated:    0 bytes
-  Status:             INSTRUMENTED NEW/DELETE ALLOCATION INVARIANT VERIFIED
+  Status:             No instrumented global new/delete activity was observed during the measured hot path.
 
 Run 3:
   p50 Latency:        3,280 ns
@@ -83,18 +83,20 @@ Run 3:
   operator new[]:     0 calls
   operator delete:    0 calls
   Bytes Allocated:    0 bytes
-  Status:             INSTRUMENTED NEW/DELETE ALLOCATION INVARIANT VERIFIED
+  Status:             No instrumented global new/delete activity was observed during the measured hot path.
 
 5. REPRESENTATIVE MEDIAN BENCHMARK SUMMARY (PORTABLE RELEASE: -O3)
 --------------------------------------------------------------------------------
-Median p50 Latency:         3,280 ns (3.28 µs)
-Median p90 Latency:         3,289 ns (3.29 µs)
-Median p99 Latency:         6,634 ns (6.63 µs)
-Median p99.9 Latency:       11,208 ns (11.21 µs)
-Median Mean Latency:        3,392.3 ns (3.39 µs)
-Min Latency observed:       3,260 ns (3.26 µs)
-Median Native Throughput:   290,396 inferences/sec
-Hot-Path Allocations:       0 calls / 0 bytes (No instrumented new/delete observed)
+Median p50 Latency:                3,280 ns (3.28 µs)
+Median p90 Latency:                3,289 ns (3.29 µs)
+Median p99 Latency:                6,634 ns (6.63 µs)
+Median p99.9 Latency:              11,208 ns (11.21 µs)
+Median of per-run mean latency:    3,392.3 ns (3.39 µs)
+Median Min Latency Across Runs:    3,262 ns (3.26 µs)
+Median Max Latency Across Runs:    138,597 ns
+Median Native Throughput:          290,396 inferences/sec
+Hot-Path Memory Status:            No instrumented global new/delete activity was observed during the measured hot path.
+Tail Latency Interpretation:       The long-tail maximum is consistent with OS/container scheduling interference in the shared gVisor environment.
 
 6. HOST-OPTIMIZED RUN (-march=native)
 --------------------------------------------------------------------------------

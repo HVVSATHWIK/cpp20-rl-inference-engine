@@ -105,13 +105,15 @@ The native benchmark (`cpp/src/main.cpp`) enforces the following experimental pr
 | **p90 Latency** | 3,289 ns | 3,550 ns | 3,287 ns | **3,289 ns** (3.29 µs) |
 | **p99 Latency** | 4,656 ns | 6,634 ns | 6,951 ns | **6,634 ns** (6.63 µs) |
 | **p99.9 Latency** | 9,140 ns | 11,208 ns | 13,045 ns | **11,208 ns** (11.21 µs) |
-| **Mean Latency** | 3,338.4 ns | 3,392.3 ns | 3,442.6 ns | **3,392.3 ns** (3.39 µs) |
-| **Min Latency** | 3,262 ns | 3,260 ns | 3,263 ns | **3,260 ns** (3.26 µs) |
-| **Max Latency** | 124,025 ns | 138,597 ns | 299,701 ns | **138,597 ns** |
+| **Median of per-run mean latency** | 3,338.4 ns | 3,392.3 ns | 3,442.6 ns | **3,392.3 ns** (3.39 µs) |
+| **Median Min Latency Across Runs** | 3,262 ns | 3,260 ns | 3,263 ns | **3,262 ns** (3.26 µs) |
+| **Median Max Latency Across Runs** | 124,025 ns | 138,597 ns | 299,701 ns | **138,597 ns** |
 | **Throughput** | 295,106 inf/s | 290,396 inf/s | 286,018 inf/s | **290,396 inferences/sec** |
 | **operator new** | 0 calls | 0 calls | 0 calls | **0 calls** |
 | **Bytes Allocated** | 0 bytes | 0 bytes | 0 bytes | **0 bytes** |
 
+*No instrumented global new/delete activity was observed during the measured hot path.*  
+*The long-tail maximum is consistent with OS/container scheduling interference in the shared gVisor environment.*  
 *These values were measured on the specified host and are not universal performance guarantees.*
 
 ### Optional Host-Specific Optimization (`-march=native`)
@@ -182,7 +184,7 @@ g++ -std=c++20 -O3 -Wall -Wextra -Icpp/include cpp/src/main.cpp -o hft_benchmark
 | **Execution Context** | Standalone native binary on host CPU | V8 JavaScript / WebAssembly sandbox in browser |
 | **Timing Source** | `std::chrono::steady_clock` | `performance.now()` in browser event loop |
 | **Memory Allocation** | Explicit `0-byte` hot path (operator new intercepted) | Garbage-collected V8 heap memory |
-| **Measured Metric** | **Median p50: 3,280 ns, Mean: 3,392 ns** | **Browser Pass: 3.6 µs (V8 runtime)** |
+| **Measured Metric** | **Median p50: 3,280 ns, Mean: 3,392 ns** | **Browser Pass: 3.6 µs, measured in the V8 runtime under the documented test environment.** |
 | **Role** | Ground-truth systems core | Visual simulation terminal, blotter, & inspector |
 
 ---
@@ -195,13 +197,15 @@ g++ -std=c++20 -O3 -Wall -Wextra -Icpp/include cpp/src/main.cpp -o hft_benchmark
 
 ---
 
-## 9. Frozen System State
+## 9. Frozen System State (Release `v1.0-native-benchmark`)
+
+> **Native C++20 optimal-execution engine with a fixed-capacity L2 matching engine, deterministic market simulation, RL inference, implementation-shortfall analytics, and a WebAssembly quantitative terminal, benchmarked at 3.28 µs median native forward-pass latency on the specified host.**
 
 ### Frontend & WebAssembly Terminal
 - Feature-complete quantitative trading terminal.
 - Strict blue/white financial styling with stable responsive layout.
 - Shortfall trajectory rendered without canvas leakage or malformed fills.
-- Browser inference metric measured in the V8 runtime (Browser Pass: 3.6 µs).
+- Browser Pass: 3.6 µs, measured in the V8 runtime under the documented test environment.
 
 ### Native C++20 Codebase (`/cpp`)
 - Concepts-constrained static polymorphism via `ExecutionPolicy`.
@@ -222,5 +226,5 @@ g++ -std=c++20 -O3 -Wall -Wextra -Icpp/include cpp/src/main.cpp -o hft_benchmark
 - Sanitizer Suite (ASan + UBSan): PASSED (0 errors, 0 leaks)
 
 ### Current Status
-The repository is frozen at the architecture and UI level.
+The repository is frozen at the architecture and UI level for release **`v1.0-native-benchmark`**.
 All native performance figures reported above were produced by the reproducible C++ benchmark executed directly on the host hardware.

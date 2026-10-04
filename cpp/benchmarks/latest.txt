@@ -1,0 +1,118 @@
+================================================================================
+CPP20::RL_EXECUTION - NATIVE C++20 HARDWARE BENCHMARK EXECUTION REPORT
+================================================================================
+Timestamp: 2026-10-04T12:10:30-07:00
+Benchmark Artifact: cpp/build/hft_benchmark
+Test Suite Artifact: cpp/build/hft_test
+
+1. ENVIRONMENT & TARGET HARDWARE
+--------------------------------------------------------------------------------
+Architecture:         x86_64 (64-bit Little Endian)
+CPU Vendor:           GenuineIntel
+CPU Model:            Family 6, Model 85, Stepping unknown (Server Class Xeon)
+Logical Cores:        2 vCPUs (online: 0, 1)
+Nominal Clock:        2400.020 MHz (Bogomips: 2400.02)
+CPU Vector Flags:     fpu sse sse2 sse3 ssse3 sse4_1 sse4_2 avx avx2 fma avx512f avx512dq avx512bw avx512vl
+Operating System:     Linux localhost 4.19.0-gvisor x86_64 GNU/Linux
+Compiler:             g++ (Ubuntu 12.3.0-1ubuntu1~22.04.3) 12.3.0
+C++ Standard:         ISO/IEC 14882:2020 (C++20, __cplusplus = 202002L)
+Build Type:           Release (-O3 -Wall -Wextra -Wpedantic -Wconversion)
+Portability Note:     Standard Release build uses portable architecture defaults.
+                      Host-optimized (-march=native) results are reported separately.
+
+2. CORRECTNESS & INVARIANT TEST SUITE RESULTS
+--------------------------------------------------------------------------------
+Binary Executable:    ./cpp/build/hft_test
+Test 1: Order Insertion & Sorted Level Accounting       -> PASSED
+Test 2: FIFO Queue Time Priority & Partial Execution    -> PASSED
+Test 3: Order Cancellation & Level Compaction           -> PASSED
+Test 4: Micro-Price & Order Flow Imbalance (OFI)        -> PASSED
+Test 5: C++20 Concept, GELU & Stable Softmax            -> PASSED
+Test 6: Deterministic Sim & Perold Implementation Shortfall -> PASSED
+Total Assertions:     88 passed, 0 failed.
+Sanitizer Suite:      AddressSanitizer + UndefinedBehaviorSanitizer -> PASSED (0 errors, 0 leaks)
+
+3. BENCHMARK METHODOLOGY
+--------------------------------------------------------------------------------
+Timing Source:        std::chrono::steady_clock (guaranteed monotonic)
+Warm-up Protocol:     1,000 unmeasured iterations to reduce first-run effects
+Measured Iterations:  100,000 forward passes
+Timing Scope:         Strictly the engine.forward(obs) invocation inside loop
+Dead-Code Barrier:    asm volatile("" : : "r,m"(val) : "memory") preventing DCE
+Allocation Tracking:  Interception of global operator new, new[], delete, delete[]
+
+4. THREE CONSECUTIVE BENCHMARK RUNS (PORTABLE RELEASE BUILD: -O3)
+--------------------------------------------------------------------------------
+Run 1:
+  p50 Latency:        3,281 ns
+  p90 Latency:        3,289 ns
+  p99 Latency:        4,656 ns
+  p99.9 Latency:      9,140 ns
+  Mean Latency:       3,338.4 ns
+  Min / Max Latency:  3,262 ns / 124,025 ns
+  Throughput:         295,106 inferences/sec
+  operator new:       0 calls
+  operator new[]:     0 calls
+  operator delete:    0 calls
+  Bytes Allocated:    0 bytes
+  Status:             INSTRUMENTED NEW/DELETE ALLOCATION INVARIANT VERIFIED
+
+Run 2:
+  p50 Latency:        3,280 ns
+  p90 Latency:        3,550 ns
+  p99 Latency:        6,634 ns
+  p99.9 Latency:      11,208 ns
+  Mean Latency:       3,392.3 ns
+  Min / Max Latency:  3,260 ns / 138,597 ns
+  Throughput:         290,396 inferences/sec
+  operator new:       0 calls
+  operator new[]:     0 calls
+  operator delete:    0 calls
+  Bytes Allocated:    0 bytes
+  Status:             INSTRUMENTED NEW/DELETE ALLOCATION INVARIANT VERIFIED
+
+Run 3:
+  p50 Latency:        3,280 ns
+  p90 Latency:        3,287 ns
+  p99 Latency:        6,951 ns
+  p99.9 Latency:      13,045 ns
+  Mean Latency:       3,442.6 ns
+  Min / Max Latency:  3,263 ns / 299,701 ns
+  Throughput:         286,018 inferences/sec
+  operator new:       0 calls
+  operator new[]:     0 calls
+  operator delete:    0 calls
+  Bytes Allocated:    0 bytes
+  Status:             INSTRUMENTED NEW/DELETE ALLOCATION INVARIANT VERIFIED
+
+5. REPRESENTATIVE MEDIAN BENCHMARK SUMMARY (PORTABLE RELEASE: -O3)
+--------------------------------------------------------------------------------
+Median p50 Latency:         3,280 ns (3.28 µs)
+Median p90 Latency:         3,289 ns (3.29 µs)
+Median p99 Latency:         6,634 ns (6.63 µs)
+Median p99.9 Latency:       11,208 ns (11.21 µs)
+Median Mean Latency:        3,392.3 ns (3.39 µs)
+Min Latency observed:       3,260 ns (3.26 µs)
+Median Native Throughput:   290,396 inferences/sec
+Hot-Path Allocations:       0 calls / 0 bytes (No instrumented new/delete observed)
+
+6. HOST-OPTIMIZED RUN (-march=native)
+--------------------------------------------------------------------------------
+Note: This result is host-specific and should not be treated as portable across CPU architectures.
+  p50 Latency:        3,136 ns
+  p90 Latency:        3,143 ns
+  p99 Latency:        6,837 ns
+  p99.9 Latency:      9,425 ns
+  Mean Latency:       3,203.3 ns
+  Min / Max Latency:  3,124 ns / 157,032 ns
+  Throughput:         307,423 inferences/sec
+  operator new:       0 calls
+  Bytes Allocated:    0 bytes
+
+7. CPU PINNED CORE EXPERIMENT (taskset -c 0)
+--------------------------------------------------------------------------------
+  p50 Latency:        3,548 ns
+  p90 Latency:        3,559 ns
+  p99 Latency:        7,086 ns
+  Throughput:         279,894 inferences/sec
+================================================================================

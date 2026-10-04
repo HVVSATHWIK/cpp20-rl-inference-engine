@@ -1,0 +1,5 @@
+/app/applet/cpp/build_native/CMakeFiles/hft_benchmark.dir
+/app/applet/cpp/build_native/CMakeFiles/hft_test.dir
+/app/applet/cpp/build_native/CMakeFiles/test.dir
+/app/applet/cpp/build_native/CMakeFiles/edit_cache.dir
+/app/applet/cpp/build_native/CMakeFiles/rebuild_cache.dir

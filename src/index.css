@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* ==========================================================================
+       LAYER 1: GLOBAL RAW DESIGN TOKENS
+       Named strictly by what they are, not what they do.
+       ========================================================================== */
+    --color-cobalt-400: #60a5fa;
+    --color-cobalt-500: #3b82f6;
+    --color-cobalt-600: #2563eb;
+    --color-cobalt-700: #1d4ed8;
+
+    --color-emerald-400: #34d399;
+    --color-emerald-500: #10b981;
+    --color-emerald-600: #059669;
+
+    --color-rose-400: #fb7185;
+    --color-rose-500: #f43f5e;
+    --color-rose-600: #e11d48;
+
+    --color-amber-400: #fbbf24;
+    --color-amber-500: #f59e0b;
+
+    --color-indigo-400: #a5b4fc;
+    --color-indigo-500: #818cf8;
+
+    --color-slate-50: #f8fafc;
+    --color-slate-100: #f1f5f9;
+    --color-slate-200: #e2e8f0;
+    --color-slate-300: #cbd5e1;
+    --color-slate-400: #94a3b8;
+    --color-slate-500: #64748b;
+    --color-slate-600: #475569;
+    --color-slate-700: #334155;
+    --color-slate-800: #1e293b;
+    --color-slate-850: #131b2e;
+    --color-slate-900: #0d1322;
+    --color-slate-950: #080c14;
+
+    /* Typographic Families */
+    --font-sans: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    /* Motion Tokens (Accessibility & Performance)
+       0.01ms ensures animationend/transitionend events fire reliably in JS runtimes
+       while rendering completely instantaneous motion to prevent vestibular triggers. */
+    --motion-duration-none: 0.01ms;
+    --motion-duration-instant: 80ms;
+    --motion-duration-fast: 150ms;
+    --motion-duration-normal: 250ms;
+    --motion-ease-terminal: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* ==========================================================================
+       LAYER 2: SEMANTIC TOKENS
+       Named by role and function. Swapped across themes.
+       ========================================================================== */
+    --bg-app: var(--color-slate-950);
+    --bg-surface: var(--color-slate-900);
+    --bg-surface-elevated: var(--color-slate-850);
+    --bg-surface-hover: #182238;
+    --border-subtle: var(--color-slate-800);
+    --border-focus: var(--color-cobalt-500);
+
+    /* Financial Indicators */
+    --color-primary: var(--color-cobalt-500);
+    --color-bid: var(--color-emerald-500);
+    --color-ask: var(--color-rose-500);
+    --color-warning: var(--color-amber-500);
+    --color-vwap: var(--color-indigo-500);
+    --color-text-primary: var(--color-slate-100);
+    --color-text-secondary: var(--color-slate-400);
+
+    /* ==========================================================================
+       LAYER 3: COMPONENT TOKENS (Brand Identity Mark)
+       Direct mappings for SVG assets and logo lockups.
+       ========================================================================== */
+    --logo-frame-bg: #090d16;
+    --logo-frame-border: var(--color-slate-800);
+    --logo-spine-fill: var(--color-cobalt-500);
+    --logo-head-fill: var(--color-cobalt-500);
+    --logo-q1-fill: var(--color-cobalt-400);
+    --logo-q2-fill: #93c5fd;
+    --logo-tick-fill: var(--color-emerald-500);
+  }
+
+  /* Theme Variant: Monochrome */
+  [data-theme="mono"] {
+    --logo-frame-bg: var(--color-slate-900);
+    --logo-frame-border: var(--color-slate-600);
+    --logo-spine-fill: var(--color-slate-50);
+    --logo-head-fill: var(--color-slate-50);
+    --logo-q1-fill: var(--color-slate-300);
+    --logo-q2-fill: var(--color-slate-400);
+    --logo-tick-fill: var(--color-slate-200);
+  }
+
+  /* Theme Variant: Light / Inverted */
+  [data-theme="light"], [data-theme="reversed"] {
+    --logo-frame-bg: var(--color-slate-50);
+    --logo-frame-border: var(--color-slate-300);
+    --logo-spine-fill: #0f172a;
+    --logo-head-fill: #1e293b;
+    --logo-q1-fill: var(--color-slate-600);
+    --logo-q2-fill: var(--color-slate-400);
+    --logo-tick-fill: var(--color-emerald-600);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-app);
+    color: var(--color-text-primary);
+    letter-spacing: -0.01em;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+    letter-spacing: -0.015em;
+  }
+}
+
+/* Accessibility: prefers-reduced-motion compliance
+   Eliminates large-scale motion and vestibular triggers while preserving
+   brief functional tactile feedback (1px button depression) and firing
+   transitionend/animationend events cleanly via 0.01ms duration. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: var(--motion-duration-none) !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: var(--motion-duration-none) !important;
+    scroll-behavior: auto !important;
+  }
+  /* Functional tactile feedback is preserved (brief feedback, not a vestibular trigger) */
+  .btn-terminal:active {
+    transform: translateY(1px) !important;
+  }
+}
+
+/* Terminal Subtle Micro-Grid for Workstation Depth */
+.terminal-grid {
+  background-image: 
+    linear-gradient(to right, rgba(30, 41, 59, 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30, 41, 59, 0.35) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Tactical Operator Button States */
+.btn-terminal {
+  transition: background-color var(--motion-duration-fast) ease, border-color var(--motion-duration-fast) ease, transform var(--motion-duration-instant) ease;
+  user-select: none;
+}
+
+.btn-terminal:active {
+  transform: translateY(1px);
+}
+
+/* Dense Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-slate-700);
+}

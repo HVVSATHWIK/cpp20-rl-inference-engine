@@ -1,206 +1,1353 @@
 # CPP20-RL-EXECUTION: Low-Latency Algorithmic Execution Terminal
 
-[![C++20 Standard](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B&logoColor=white)](https://en.cppreference.com/w/cpp/20)
-[![WebAssembly SIMD-128](https://img.shields.io/badge/WASM-SIMD--128-654FF0?logo=webassembly&logoColor=white)](https://webassembly.org/)
-[![Zero Allocations](https://img.shields.io/badge/Memory-Zero--Alloc%20(Hot%20Path)-10b981)](#zero-allocation-architecture)
-[![Inference Latency](https://img.shields.io/badge/Latency-p50%20%3C%20185ns-3b82f6)](#empirical-performance-benchmarking)
-[![Implementation Shortfall](https://img.shields.io/badge/Benchmark-Almgren--Chriss%20%2F%20Perold-f59e0b)](#optimal-execution-formulation)
-[![License: MIT](https://img.shields.io/badge/License-MIT-slate.svg)](LICENSE)
+![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B&logoColor=white)
+![WebAssembly](https://img.shields.io/badge/WebAssembly-Terminal-654FF0?logo=webassembly&logoColor=white)
+![Native p50](https://img.shields.io/badge/Native%20p50-3.28%C2%B5s-3b82f6)
+![Instrumented Allocation](https://img.shields.io/badge/Hot%20Path-Instrumented%20new%2Fdelete-10b981)
+![Implementation Shortfall](https://img.shields.io/badge/Execution-Implementation%20Shortfall-f59e0b)
+![License MIT](https://img.shields.io/badge/License-MIT-slate.svg)
 
-A production-grade quantitative trading terminal and reinforcement learning execution engine. Built with a **C++20 zero-allocation core**, vectorized via **WebAssembly SIMD-128**, and driven by an **event-driven discrete market simulator** featuring Merton Jump-Diffusion, Poisson order arrivals, dynamic L2 limit order books, and real-time empirical benchmarking.
+> A native C++20 optimal-execution engine prototype with a fixed-capacity L2 matching engine, deterministic market simulation, RL policy inference, implementation-shortfall analytics, reproducible native benchmarking, and an interactive WebAssembly quantitative terminal.
 
 ---
 
 ## Live System Architecture & Animation Loop
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                        DETERMINISTIC SIMULATION & INFERENCE PIPELINE                   │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+```text
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                  DETERMINISTIC SIMULATION & INFERENCE PIPELINE                │
+└───────────────────────────────────────────────────────────────────────────────┘
 
- [1. Event Tick]            [2. Feature State]           [3. Vectorized Policy]      [4. L2 Queue Dispatch]
- ────────────────           ──────────────────           ──────────────────────      ──────────────────────
-   Poisson Order              std::span<float, 10>         WASM SIMD-128 FMA           Intrusive Queue Walk
-   Replenishment              Cache-Aligned (64B)          Zero Heap Allocs            Almgren-Chriss Slicing
-         │                            │                             │                            │
-         ▼                            ▼                             ▼                            ▼
-  ┌─────────────┐              ┌──────────────┐              ┌──────────────┐             ┌──────────────┐
-  │  L2 Book    │ ───────────► │ Observation  │ ───────────► │ Neural Engine│ ──────────► │ Market Fill  │
-  │  Snapshot   │              │ Vector (10D) │              │ GELU MLP     │             │ Execution    │
-  └─────────────┘              └──────────────┘              └──────────────┘             └──────────────┘
-         │                            │                             │                            │
-         ▼                            ▼                             ▼                            ▼
-  • Best Bid: $150.00          • OFI: +14.2%                 • Dense1: 48x10              • Argmax Action
-  • Best Ask: $150.05          • Micro-Skew: -0.01           • Dense2: 24x48              • Aggressive Cross
-  • Spread: 1 tick             • Urgency: 1.15               • Softmax: 7 Actions         • Shortfall: -$0.35
+ [1. Event Tick]       [2. Feature State]      [3. RL Policy]       [4. Execution]
+ ─────────────────     ──────────────────      ───────────────       ─────────────
+ Market simulation     std::span state         GELU MLP              FIFO Queue
+ L2 updates            10D observation        Softmax               Market Fill
+ Poisson arrivals      OFI / spread           7 actions             Shortfall
+        │                      │                    │                    │
+        ▼                      ▼                    ▼                    ▼
+ ┌──────────────┐      ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+ │   L2 BOOK    │ ───► │ OBSERVATION  │ ─►  │ NEURAL POLICY│ ─►  │   EXECUTION  │
+ │   SNAPSHOT   │      │   VECTOR     │     │   FORWARD    │     │    ENGINE    │
+ └──────────────┘      └──────────────┘     └──────────────┘     └──────────────┘
+        │                      │                    │                    │
+        ▼                      ▼                    ▼                    ▼
+ Best Bid / Ask          OFI / Micro-Skew     Dense 48x10          Action Selection
+ Spread / Micro-price    Return / Volatility  Dense 24x48          Parent Order
+ Queue State             Remaining Shares     Softmax 7             IS / bps
 ```
 
-### Live Terminal Execution Frame
+The browser terminal visualizes the state transitions above. UI animation is presentation-only and is intentionally separated from the native benchmark path.
 
+---
+
+# Live Terminal Animation System
+
+The interface uses subtle, event-driven motion rather than continuous decorative animation.
+
+Animation is triggered by:
+
+- market ticks
+- order-book updates
+- price changes
+- execution fills
+- selected RL actions
+- simulation state changes
+
+The animation layer does **not** participate in native C++ benchmark timing.
+
+## Animation design goals
+
+- Maintain a professional quantitative-terminal appearance.
+- Provide immediate visual feedback for live updates.
+- Avoid excessive motion and visual noise.
+- Never make animation imply a performance guarantee.
+- Respect `prefers-reduced-motion`.
+- Keep rendering work isolated from the measured native engine.
+
+### `src/hooks/useTerminalMotion.ts`
+
+```tsx
+import { useEffect, useState } from "react";
+
+export function useTerminalMotion(signal: string | number) {
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    let frame1 = 0;
+    let frame2 = 0;
+
+    frame1 = requestAnimationFrame(() => {
+      setActive(true);
+
+      frame2 = requestAnimationFrame(() => {
+        setActive(false);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(frame1);
+      cancelAnimationFrame(frame2);
+    };
+  }, [signal]);
+
+  return active;
+}
 ```
-[CPP20::RL_EXECUTION] LIVE TICK #482 | SIMD-128 ACTIVE | LATENCY: 182ns | HORIZON: 120 TICKS
-═══════════════════════════════════════════════════════════════════════════════════════════════
- [L2 LIMIT ORDER BOOK]             [OPTIMAL EXECUTION MONITOR]          [EXECUTION TAPE]
- Price ($)   Size  Total  Orders   Shortfall: -$0.35 [SAVINGS] (-2.3 bps) Time      Side  Price   Qty
- 150.15        14     82       3   Avg Fill:  $149.95 (S₀: $150.00)       11:04:12  BUY   150.05   10  (RL)
- 150.10        28     68       5   Filled:    42.0% (42/100 shares)       11:04:11  SELL  150.00   15  (MM)
- 150.05 [ASK]  40     40       8   vs TWAP:   +3.8 bps [ADVANTAGE]        11:04:10  BUY   150.00    5  (RL)
- ───────────────────────────────   ────────────────────────────────────   11:04:09  BUY   149.95   20  (RL)
- SPREAD: $0.05 (1t) | MICRO: $150.02 Execution Horizon: [██████░░░░░░] 42%
- ───────────────────────────────   ────────────────────────────────────   [POLICY ARGMAX]
- 150.00 [BID]  35     35       7   Shortfall Trajectory:                  ► AGGRESSIVE_CROSS (78.4%)
- 149.95        22     57       4    +$4.0 ─────────────────────────────     Latency: 182 ns
- 149.90        19     76       3    $0.00 ───────·············· (S₀)       Entropy: 1.42 nats
- 149.85        31    107       6    -$4.0 ───────\________/──── (IS)       Status: Zero-Alloc Hot Path
+
+### `src/styles/terminalMotion.css`
+
+```css
+@keyframes terminal-update {
+  0% {
+    opacity: 0.92;
+    transform: translateY(0);
+    background-color: transparent;
+  }
+
+  35% {
+    opacity: 1;
+    transform: translateY(-1px);
+    background-color: rgb(37 99 235 / 0.14);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    background-color: transparent;
+  }
+}
+
+@keyframes terminal-buy-flash {
+  0% {
+    background-color: transparent;
+  }
+
+  30% {
+    background-color: rgb(16 185 129 / 0.18);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes terminal-sell-flash {
+  0% {
+    background-color: transparent;
+  }
+
+  30% {
+    background-color: rgb(244 63 94 / 0.18);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes terminal-argmax {
+  0% {
+    box-shadow: 0 0 0 0 rgb(59 130 246 / 0);
+  }
+
+  40% {
+    box-shadow: 0 0 0 2px rgb(59 130 246 / 0.22);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgb(59 130 246 / 0);
+  }
+}
+
+@keyframes terminal-live-dot {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.terminal-update {
+  animation: terminal-update 220ms ease-out;
+}
+
+.terminal-buy-flash {
+  animation: terminal-buy-flash 240ms ease-out;
+}
+
+.terminal-sell-flash {
+  animation: terminal-sell-flash 240ms ease-out;
+}
+
+.terminal-argmax {
+  animation: terminal-argmax 400ms ease-out;
+}
+
+.terminal-live-dot {
+  animation: terminal-live-dot 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-update,
+  .terminal-buy-flash,
+  .terminal-sell-flash,
+  .terminal-argmax,
+  .terminal-live-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+```
+
+### Example: animated live metric
+
+```tsx
+import { useTerminalMotion } from "../hooks/useTerminalMotion";
+
+interface LiveMetricProps {
+  value: string;
+  signal: string | number;
+}
+
+export function LiveMetric({ value, signal }: LiveMetricProps) {
+  const active = useTerminalMotion(signal);
+
+  return (
+    <span
+      className={[
+        "tabular-nums transition-colors",
+        active ? "terminal-update" : ""
+      ].join(" ")}
+    >
+      {value}
+    </span>
+  );
+}
+```
+
+### Example: order-book update animation
+
+```tsx
+interface OrderBookRowProps {
+  price: number;
+  size: number;
+  side: "bid" | "ask";
+  updateId: number;
+}
+
+export function OrderBookRow({
+  price,
+  size,
+  side,
+  updateId
+}: OrderBookRowProps) {
+  const active = useTerminalMotion(updateId);
+
+  const flash =
+    active
+      ? side === "bid"
+        ? "terminal-buy-flash"
+        : "terminal-sell-flash"
+      : "";
+
+  return (
+    <div
+      className={[
+        "grid grid-cols-4 items-center",
+        "tabular-nums transition-colors",
+        flash
+      ].join(" ")}
+    >
+      <span>{price.toFixed(2)}</span>
+      <span>{size.toLocaleString()}</span>
+      <span>{side === "bid" ? "BID" : "ASK"}</span>
+      <span>{updateId}</span>
+    </div>
+  );
+}
+```
+
+### Example: selected RL action
+
+```tsx
+interface ActionCardProps {
+  selected: boolean;
+  label: string;
+  probability: number;
+  actionVersion: number;
+}
+
+export function ActionCard({
+  selected,
+  label,
+  probability,
+  actionVersion
+}: ActionCardProps) {
+  const active = useTerminalMotion(actionVersion);
+
+  const className = [
+    "rounded-sm border px-2 py-1",
+    "transition-colors",
+    selected
+      ? "border-blue-500/80 bg-blue-950/80 text-blue-100"
+      : "border-slate-800 bg-slate-950 text-slate-300",
+    selected && active ? "terminal-argmax" : ""
+  ].join(" ");
+
+  return (
+    <div className={className}>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium">
+          {label}
+        </span>
+
+        {selected && (
+          <span className="rounded border border-blue-500/60 px-1 text-[9px] text-blue-300">
+            ARGMAX
+          </span>
+        )}
+      </div>
+
+      <div className="mt-1 h-1 overflow-hidden rounded bg-slate-800">
+        <div
+          className="h-full bg-blue-500 transition-[width] duration-200"
+          style={{
+            width: `${Math.max(0, Math.min(100, probability * 100))}%`
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+### Example: live simulation indicator
+
+```tsx
+export function LiveIndicator({
+  running
+}: {
+  running: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wide">
+      <span
+        className={[
+          "h-1.5 w-1.5 rounded-full",
+          running
+            ? "bg-emerald-400 terminal-live-dot"
+            : "bg-slate-500"
+        ].join(" ")}
+      />
+
+      <span className={running ? "text-emerald-300" : "text-slate-400"}>
+        {running ? "LIVE RUNNING" : "PAUSED"}
+      </span>
+    </div>
+  );
+}
+```
+
+### Animation architecture
+
+```text
+Simulation Tick
+      │
+      ▼
+React State Update
+      │
+      ├── Market chart update
+      ├── Order-book update
+      ├── RL action update
+      ├── Execution update
+      └── Tape update
+              │
+              ▼
+       Motion Signal
+              │
+              ▼
+     requestAnimationFrame
+              │
+              ▼
+       CSS transition /
+       CSS keyframe pulse
+```
+
+Animations are presentation-only. They are never included in the measured native C++ execution path.
+
+---
+
+# Native C++20 Systems Core
+
+## 1. C++20 Concepts & Static Polymorphism
+
+The execution-policy abstraction uses a compile-time constrained interface rather than a virtual base class.
+
+```cpp
+template <typename T>
+concept ExecutionPolicy =
+    requires(T policy, std::span<const float> state) {
+        { policy.forward(state) } -> std::same_as<ActionType>;
+        { policy.entropy() } -> std::floating_point;
+        { policy.reset() } -> std::same_as<void>;
+    };
+```
+
+The concrete execution engine is validated at compile time:
+
+```cpp
+static_assert(
+    hft::core::ExecutionPolicy<NeuralExecutionEngine>,
+    "NeuralExecutionEngine must satisfy ExecutionPolicy"
+);
+```
+
+This provides static polymorphism for the execution-policy abstraction without requiring a virtual interface.
+
+---
+
+# 2. Fixed-Capacity L2 Matching Engine
+
+The native order book uses:
+
+- fixed-capacity storage
+- intrusive doubly-linked order nodes
+- FIFO price-time priority
+- sorted bid/ask price levels
+- level compaction
+- explicit cache-line-aware layout
+- runtime invariant verification
+
+Representative structure:
+
+```cpp
+struct alignas(64) PriceLevel {
+    double price{0.0};
+    uint32_t total_volume{0};
+    uint32_t order_count{0};
+
+    OrderNode* head{nullptr};
+    OrderNode* tail{nullptr};
+
+    uint8_t padding[32]{};
+
+    static_assert(sizeof(PriceLevel) == 64);
+
+    void push_back(OrderNode* node) noexcept {
+        node->next = nullptr;
+        node->prev = tail;
+
+        if (tail) {
+            tail->next = node;
+        } else {
+            head = node;
+        }
+
+        tail = node;
+        total_volume += node->quantity;
+        order_count++;
+    }
+};
+```
+
+The project uses cache-line-aware layout rather than claiming that alignment alone universally eliminates false sharing.
+
+---
+
+# 3. Instrumented Hot-Path Memory Tracking
+
+The benchmark instruments:
+
+```text
+operator new
+operator new[]
+operator delete
+operator delete[]
+```
+
+The current benchmark result:
+
+```text
+operator new:       0 calls
+operator new[]:     0 calls
+operator delete:    0 calls
+operator delete[]:  0 calls
+Bytes Allocated:    0 bytes
+```
+
+Interpretation:
+
+> No instrumented global new/delete activity was observed during the measured hot path.
+
+This is an instrumentation result, not a universal claim that every possible allocator in every runtime is absent.
+
+---
+
+# 4. Native Neural Execution Policy
+
+The policy implements a compact MLP:
+
+```text
+Input
+  10 features
+      │
+      ▼
+Dense Layer 1
+  48 hidden
+      │
+      ▼
+GELU
+      │
+      ▼
+Dense Layer 2
+  24 hidden
+      │
+      ▼
+GELU
+      │
+      ▼
+Output Layer
+  7 actions
+      │
+      ▼
+Numerically Stable Softmax
+      │
+      ▼
+Action Distribution
+```
+
+The dense loops use manual four-lane unrolling to expose instruction-level parallelism.
+
+This is not described as guaranteed hardware SIMD.
+
+The GELU implementation uses a polynomial approximation with input bounds:
+
+```cpp
+inline float fast_gelu(float x) noexcept {
+    if (x <= GELU_MIN) {
+        return 0.0f;
+    }
+
+    if (x >= GELU_MAX) {
+        return x;
+    }
+
+    constexpr float k = 0.7978845608f;
+
+    const float cubic = x * x * x;
+    const float inner = k * (x + 0.044715f * cubic);
+
+    return 0.5f * x * (1.0f + std::tanh(inner));
+}
+```
+
+Softmax subtracts the maximum logit before exponentiation for numerical stability:
+
+```cpp
+float max_logit = logits[0];
+
+for (float value : logits) {
+    max_logit = std::max(max_logit, value);
+}
+
+float sum = 0.0f;
+
+for (size_t i = 0; i < logits.size(); ++i) {
+    probabilities[i] = std::exp(logits[i] - max_logit);
+    sum += probabilities[i];
+}
+
+for (float& probability : probabilities) {
+    probability /= sum;
+}
 ```
 
 ---
 
-## Core Systems Engineering Features
+# 5. Deterministic Market Microstructure Simulator
 
-### 1. Zero-Allocation Hot Path (`alignas(64)`)
-* In trading systems, garbage collection pauses or dynamic memory allocation (`malloc`, `new`) introduce non-deterministic tail latency spikes (p99/p99.9).
-* All internal tensors, activations, intrusive queue nodes, and feature vectors operate entirely on **pre-allocated stack buffers and contiguous scratchpads**.
-* Feature inputs are passed using `std::span<float>` semantics, eliminating buffer copies between market ingestion and policy evaluation.
+## Price Dynamics
 
-### 2. WASM SIMD-128 Vectorized Neural Engine
-* Evaluates policy forward passes in **sub-200 nanoseconds**.
-* Matrix-vector multiplications ($\mathbf{y} = \mathbf{W}\mathbf{x} + \mathbf{b}$) utilize 4-lane unrolled Fused Multiply-Add (FMA) routines, achieving a measured **3.2× speedup** over scalar baselines.
-* Activation function: Fast polynomial approximation of the Gaussian Error Linear Unit (**GELU**):
-  $$\text{GELU}(x) \approx 0.5x \left(1 + \tanh\left(\sqrt{\frac{2}{\pi}} \left(x + 0.044715 x^3\right)\right)\right)$$
+The simulator uses seeded Merton Jump-Diffusion dynamics.
 
-### 3. Discrete-Event Market Microstructure Simulator
-* **Price Dynamics**: Modeled with Merton Jump-Diffusion ($dS_t = \mu S_t dt + \sigma S_t dW_t + J_t dq_t$), generating realistic heavy-tailed market returns.
-* **Order Book**: Full Level-2 (L2) Price-Time Priority Ladder with intrusive doubly-linked order nodes.
-* **Order Flow Imbalance (OFI)**: Real-time tick-by-tick microstructural imbalance:
-  $$\text{OFI} = \frac{Q_{\text{bid}} - Q_{\text{ask}}}{Q_{\text{bid}} + Q_{\text{ask}}} \in [-1.0, +1.0]$$
-* **Micro-Price**: Volume-weighted fair price accounting for top-of-book depth skew:
-  $$P_{\text{micro}} = \frac{P_{\text{bid}} Q_{\text{ask}} + P_{\text{ask}} Q_{\text{bid}}}{Q_{\text{bid}} + Q_{\text{ask}}}$$
+The important property for testing is deterministic replay under identical:
 
-### 4. Optimal Execution & Implementation Shortfall Formulation
-The agent optimizes liquidation of a parent order ($Q = 100\text{ shares}$) over a finite horizon ($T = 120\text{ ticks}$), minimizing the classical **Perold Implementation Shortfall (1988)**:
+- initial configuration
+- random seed
+- simulation state
+- event sequence
 
-$$\text{IS} = \sum_{k=1}^N P_k q_k - Q_{\text{target}} \cdot S_0$$
+## Order Arrivals
 
-* **Negative Shortfall ($\text{IS} \le \$0$)**: Labeled as **Execution Savings / Alpha** (the agent bought below arrival price $S_0$).
-* **Positive Shortfall ($\text{IS} > \$0$)**: Labeled as **Slippage Cost** (market impact and adverse selection).
-* **TWAP Benchmark Comparison**: Measured relative to linear time-weighted slicing:
-  $$\text{TWAP Advantage} = \frac{P_{\text{TWAP}} - P_{\text{avg}}}{P_{\text{TWAP}}} \times 10{,}000\text{ bps}$$
+L2 liquidity replenishment and simulated market activity use Poisson event generation.
+
+## Order Flow Imbalance
+
+```text
+OFI = (Q_bid - Q_ask) / (Q_bid + Q_ask)
+```
+
+with:
+
+```text
+OFI ∈ [-1, +1]
+```
+
+## Micro-Price
+
+```text
+P_micro =
+(P_bid * Q_ask + P_ask * Q_bid)
+--------------------------------
+        Q_bid + Q_ask
+```
+
+The order-book state, spread, micro-price, volume and OFI are derived from the same market snapshot.
 
 ---
 
-## Empirical Performance Benchmarking
+# 6. Optimal Execution & Implementation Shortfall
 
-All reported latencies and throughput metrics are **empirically benchmarked on the host CPU** using the Google Benchmark methodology (`performance.now()` across batched execution cycles):
+The system evaluates a parent order over a finite execution horizon.
 
-| Engine Configuration | p50 Latency | p90 Latency | p99 Latency | Throughput (Inf/sec) | Memory Allocations |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **WASM SIMD-128 (PPO Agent)** | **182 ns** | **205 ns** | **245 ns** | **5,494,500** | **0 bytes** |
-| **Scalar Baseline Engine** | 585 ns | 640 ns | 720 ns | 1,709,400 | 0 bytes |
-| **Deterministic TWAP Slicer** | 42 ns | 55 ns | 78 ns | 23,809,500 | 0 bytes |
-| **Immediate Taker (Cross)** | 38 ns | 48 ns | 65 ns | 26,315,700 | 0 bytes |
+The implementation shortfall formulation is:
 
-*Live benchmarks can be re-run in the terminal via the **Benchmark Suite modal**.*
-
----
-
-## Terminal UI Overview
-
+```text
+IS = Σ(P_k * q_k) - Q_target * S_0
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ [BrandLogo] CPP20::RL_EXECUTION  [C++20] [WASM] [Optimal Exec]  Mid: $150.02 | 182ns  │
-├───────────────────────────────────────────────────────┬────────────────────────────────┤
-│                                                       │                                │
-│  MARKET TICK & EXECUTION FEED (ChartCanvas)           │  L2 LIMIT ORDER BOOK           │
-│  • Live price curve with VWAP and S₀ Arrival Target   │  • Top-of-book BBO highlights  │
-│  • Volume sub-pane with color-coded ticks             │  • Asymmetric queue depth bars │
-│  • Interactive crosshair inspection tooltip           │  • Real-time OFI and Spread    │
-│                                                       │                                │
-├───────────────────────────────────────────────────────┼────────────────────────────────┤
-│                                                       │                                │
-│  POLICY FORWARD-PASS PIPELINE (InferenceInspector)    │  CUMULATIVE MARKET DEPTH       │
-│  • 10D Observation vector with divergence bars        │  • Dual-side liquidity curves  │
-│  • Hidden tensor GELU activation micro-grid           │  • Bid/Ask volume volume skew  │
-│  • Argmax Action probability distribution             │  • Real-time Midpoint anchor   │
-│                                                       │                                │
-├───────────────────────────────────────────────────────┼────────────────────────────────┤
-│                                                       │                                │
-│  OPTIMAL EXECUTION MONITOR (AgentPerformanceView)     │  EXECUTION BLOTTER & TAPE      │
-│  • Implementation Shortfall ($ and bps)               │  • Aligned 12-column ledger    │
-│  • Average Fill vs. Arrival Benchmark                 │  • Distinct BUY / SELL badges  │
-│  • Milestone execution progress (25%, 50%, 75%)       │  • RL Agent fill tagging       │
-│  • Implementation Shortfall Trajectory Curve          │  • Independent scroll buffer   │
-│                                                       │                                │
-└───────────────────────────────────────────────────────┴────────────────────────────────┘
+
+For the configured buy-side convention:
+
+```text
+IS <= 0  → Execution Savings
+IS >  0  → Slippage Cost
+```
+
+The terminal presents both:
+
+- dollar shortfall
+- shortfall in basis points
+- average fill price
+- arrival price
+- completion percentage
+- TWAP comparison
+- shortfall trajectory
+
+TWAP advantage:
+
+```text
+TWAP Advantage =
+(P_TWAP - P_avg)
+-----------------
+     P_TWAP
+     × 10,000 bps
 ```
 
 ---
 
-## Anti-AI Brand Identity & Provenance
+# 7. Empirical Native C++20 Benchmark
 
-The project logo avoids generic AI tropes (lightbulbs, circuit boards, brains, sparkles, swooshes, or purple gradients). Instead, it abstracts **real structural features of L2 order book queues**:
+The official portable Release benchmark was executed on:
 
+```text
+CPU:
+Server-class Intel Xeon host
+
+Architecture:
+x86_64
+
+Environment:
+Linux 4.19 gVisor container
+
+Compiler:
+GCC 12.3.0
+
+Language:
+C++20
+
+Build:
+-O3 -std=c++20
+
+Timing:
+std::chrono::steady_clock
+
+Warm-up:
+1,000 unmeasured passes
+
+Measured:
+100,000 iterations per run
+
+Runs:
+3
 ```
-        L2 Price Barrier Spine
-           (alignas(64))
-               │
-               ▼
-        ┌──┬───────────────────────┐
-        │  │ █ Head of Queue (q₀) ◄┼── 45° Execution Fill Notch
-        │  ├───────────────────────┘
-        │  │ ████ Next Priority (q₁)  (Asymmetric Poisson Depth)
-        │  ├─────────────┐
-        │  │ ██ Passive  │
-        │  └─────────────┘
-        │                     ● ◄───── Discrete Tick Event (Δt)
-        └──────────────────────────┘
+
+## Official Portable `-O3` Results
+
+| Metric | Run 1 | Run 2 | Run 3 | Representative |
+|---|---:|---:|---:|---:|
+| p50 | 3,281 ns | 3,280 ns | 3,280 ns | **3,280 ns** |
+| p90 | 3,289 ns | 3,550 ns | 3,287 ns | **3,289 ns** |
+| p99 | 4,656 ns | 6,634 ns | 6,951 ns | **6,634 ns** |
+| p99.9 | 9,140 ns | 11,208 ns | 13,045 ns | **11,208 ns** |
+| Mean | 3,338.4 ns | 3,392.3 ns | 3,442.6 ns | **3,392.3 ns** |
+| Minimum | 3,262 ns | 3,260 ns | 3,263 ns | **3,262 ns** |
+| Maximum | 124,025 ns | 138,597 ns | 299,701 ns | **138,597 ns** |
+| Throughput | 295,106/s | 290,396/s | 286,018/s | **290,396/s** |
+
+### Representative native result
+
+```text
+p50:       3,280 ns
+p90:       3,289 ns
+p99:       6,634 ns
+p99.9:    11,208 ns
+Mean:      3,392.3 ns
+Throughput:
+           290,396 inferences/sec
 ```
 
-* **Vertical Spine**: Represents the 64-byte cache-aligned memory boundary (`alignas(64)`) of an L2 order book price level.
-* **Asymmetric Queue Slots ($q_0, q_1, q_2$)**: Represents discrete FIFO priority levels with empirical Poisson depth.
-* **$45^\circ$ Notch**: Signifies a spread-crossing execution event.
-* **Delta-t ($\Delta t$) Marker**: Emerald indicator for microsecond discrete-event dispatch.
-* **Bespoke Typographic Pairing**: **Space Grotesk** display geometry with a **JetBrains Mono** scope resolution operator (`CPP20::RL_EXECUTION`).
-* *For complete design rationale and rejected concept sketches, refer to [DESIGN.md](DESIGN.md).*
+These values were measured on the specified host and are not universal performance guarantees.
 
 ---
 
-## Quickstart & Local Development
+# 8. Host-Optimized Native Benchmark
 
-### Prerequisites
-* **Node.js**: v18.0.0 or higher
-* **npm**: v9.0.0 or higher
-
-### Installation & Execution
+An optional host-specific build is available:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/example/cpp20-rl-inference-engine.git
+cmake -S cpp \
+  -B cpp/build_native \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_NATIVE_OPT=ON
+
+cmake --build cpp/build_native --parallel
+```
+
+Configuration:
+
+```text
+-std=c++20
+-O3
+-march=native
+```
+
+Measured result:
+
+```text
+p50:
+3,136 ns
+
+Throughput:
+307,423 inferences/sec
+```
+
+This is a host-specific optimization result and should not be treated as portable across CPU architectures.
+
+---
+
+# 9. Native vs Browser Runtime
+
+| Dimension | Native C++20 | Browser / WebAssembly |
+|---|---|---|
+| Runtime | Standalone native executable | Browser V8 / WebAssembly |
+| Timing | `steady_clock` | `performance.now()` |
+| Main Role | Systems core / benchmark | Interactive terminal |
+| Representative Metric | 3,280 ns p50 | 3.6 µs browser pass |
+| Allocation Context | Instrumented native hot path | Managed browser runtime |
+| Environment | Host CPU | Browser sandbox |
+
+The values are intentionally reported separately because the two environments have different runtimes and timing mechanisms.
+
+---
+
+# 10. Correctness Verification
+
+The native test suite contains:
+
+```text
+88 assertions
+0 failures
+```
+
+Verified areas include:
+
+```text
+✓ Order insertion
+✓ Sorted price-level accounting
+✓ FIFO queue priority
+✓ Partial execution
+✓ Order cancellation
+✓ Level compaction
+✓ Micro-price
+✓ Order Flow Imbalance
+✓ C++20 ExecutionPolicy concept
+✓ GELU numerical behavior
+✓ Softmax normalization
+✓ Deterministic simulation
+✓ Implementation Shortfall
+```
+
+---
+
+# 11. Sanitizer Verification
+
+The native implementation has also been verified with:
+
+```text
+AddressSanitizer
+UndefinedBehaviorSanitizer
+```
+
+Result:
+
+```text
+0 errors
+0 leaks
+0 boundary violations
+0 reported undefined behavior
+```
+
+Sanitized builds are used for correctness validation and are not used as the official performance benchmark.
+
+---
+
+# 12. Terminal UI Overview
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ CPP20::RL_EXECUTION   [C++20] [WASM] [Optimal Execution]   Browser Pass ... │
+├───────────────────────────────────────────────────────────┬──────────────────┤
+│                                                           │                  │
+│ MARKET TICK & EXECUTION FEED                              │ L2 ORDER BOOK    │
+│ • Live price curve                                        │ • BBO            │
+│ • VWAP                                                     │ • Queue depth    │
+│ • Arrival target                                           │ • OFI / Spread   │
+│ • Volume                                                   │ • Micro-price    │
+│                                                           │                  │
+├───────────────────────────────────────────────────────────┼──────────────────┤
+│                                                           │                  │
+│ POLICY FORWARD-PASS PIPELINE                              │ CUMULATIVE       │
+│ • Observation Vector                                      │ MARKET DEPTH     │
+│ • GELU activations                                         │ • Bid curve      │
+│ • Action distribution                                      │ • Ask curve      │
+│ • Selected ARGMAX                                          │ • Midpoint       │
+│ • Browser pass                                             │                  │
+│                                                           │                  │
+├───────────────────────────────────────────────────────────┼──────────────────┤
+│                                                           │                  │
+│ OPTIMAL EXECUTION MONITOR                                 │ EXECUTION TAPE   │
+│ • Implementation Shortfall                                 │ • BUY / SELL     │
+│ • Average Fill                                             │ • Price / Qty    │
+│ • Completion                                               │ • Participant    │
+│ • TWAP comparison                                          │ • RL fills       │
+│ • Shortfall trajectory                                     │ • Scroll buffer  │
+│                                                           │                  │
+└───────────────────────────────────────────────────────────┴──────────────────┘
+```
+
+---
+
+# 13. Live Terminal Interaction Model
+
+```text
+Simulation Tick
+      │
+      ▼
+Market State Update
+      │
+      ├──────────────► Price Chart
+      │
+      ├──────────────► L2 Order Book
+      │
+      ├──────────────► OFI / Micro-Price
+      │
+      ▼
+Observation Vector
+      │
+      ▼
+RL Policy Forward Pass
+      │
+      ▼
+Action Distribution
+      │
+      ▼
+Execution Decision
+      │
+      ├──────────────► Execution Tape
+      │
+      ├──────────────► Parent Order Progress
+      │
+      └──────────────► Implementation Shortfall
+                              │
+                              ▼
+                         UI Animation
+```
+
+---
+
+# 14. Animation Principles
+
+The animation system is intentionally restrained.
+
+### Market Updates
+
+Price changes may trigger:
+
+```text
+subtle line interpolation
+small value flash
+micro tooltip update
+volume-bar transition
+```
+
+### Order Book Updates
+
+Bids and asks use short-lived row highlights:
+
+```text
+BUY:
+emerald flash
+
+SELL:
+rose flash
+```
+
+### RL Policy
+
+The selected action receives:
+
+```text
+ARGMAX indicator
+blue highlight
+short pulse
+probability bar transition
+```
+
+### Execution
+
+New fills may trigger:
+
+```text
+BUY:
+emerald row flash
+
+SELL:
+rose row flash
+
+RL Agent:
+blue institutional highlight
+```
+
+### System State
+
+The live indicator uses a subtle pulsing dot:
+
+```text
+● LIVE RUNNING
+```
+
+Pause removes the animation.
+
+Reduced-motion users receive no animation.
+
+---
+
+# 15. Animation Performance Rules
+
+The animation layer must obey the following:
+
+1. Never block simulation state updates.
+2. Never participate in native benchmark timing.
+3. Never alter market-data calculations.
+4. Never create artificial execution latency.
+5. Prefer CSS transitions/keyframes for simple presentation effects.
+6. Use `requestAnimationFrame` only for presentation state synchronization.
+7. Respect `prefers-reduced-motion`.
+8. Keep animation durations short and deterministic.
+9. Avoid continuous high-cost canvas effects.
+10. Do not use animation to hide stale or missing data.
+
+---
+
+# 16. Brand Identity & Provenance
+
+The brand mark is derived from actual project primitives rather than generic AI symbolism.
+
+```text
+       L2 Price-Level Spine
+               │
+               ▼
+        ┌──┬────────────────────┐
+        │  │ █ Head of Queue    │◄── Execution Notch
+        │  ├────────────────────┘
+        │  │ ███ Next Priority
+        │  ├───────────────┐
+        │  │ ██ Passive    │
+        │  └───────────────┘
+        │
+        │                 ●  Discrete Tick Event
+        └───────────────────────
+```
+
+Design elements:
+
+- **Vertical Spine:** cache-line-aware price-level structure.
+- **Asymmetric Queue Slots:** FIFO priority and heterogeneous displayed liquidity.
+- **Execution Notch:** spread-crossing execution event.
+- **Tick Marker:** discrete event dispatch.
+- **Wordmark:** `CPP20::RL_EXECUTION`.
+- **Typography:** Space Grotesk + JetBrains Mono for the C++ scope-resolution element.
+- **Output:** scalable SVG rather than raster graphics.
+
+Detailed rationale and design history are documented in:
+
+```text
+DESIGN.md
+```
+
+---
+
+# 17. Repository Structure
+
+```text
+cpp20-rl-execution/
+│
+├── cpp/
+│   ├── include/
+│   │   ├── types.hpp
+│   │   ├── order_book.hpp
+│   │   ├── neural_policy.hpp
+│   │   └── market_simulator.hpp
+│   │
+│   ├── src/
+│   │   └── main.cpp
+│   │
+│   ├── tests/
+│   │   └── test_engine.cpp
+│   │
+│   ├── benchmarks/
+│   │   └── latest.txt
+│   │
+│   ├── CMakeLists.txt
+│   ├── Makefile
+│   └── README.md
+│
+├── src/
+│   ├── components/
+│   │   ├── ChartCanvas.tsx
+│   │   ├── OrderBookView.tsx
+│   │   ├── InferenceInspector.tsx
+│   │   ├── DepthChartCanvas.tsx
+│   │   ├── AgentPerformanceView.tsx
+│   │   ├── TradeLogView.tsx
+│   │   ├── Header.tsx
+│   │   └── BrandLogo.tsx
+│   │
+│   ├── engine/
+│   ├── hooks/
+│   │   └── useTerminalMotion.ts
+│   │
+│   ├── styles/
+│   │   └── terminalMotion.css
+│   │
+│   └── App.tsx
+│
+├── DESIGN.md
+├── LICENSE
+└── package.json
+```
+
+---
+
+# 18. Quickstart
+
+## Prerequisites
+
+```text
+Node.js >= 18
+npm >= 9
+
+C++20 compiler:
+GCC 11+
+Clang 13+
+or compatible MSVC
+```
+
+---
+
+## Frontend
+
+Clone the repository:
+
+```bash
+git clone https://github.com/<your-username>/cpp20-rl-inference-engine.git
 cd cpp20-rl-inference-engine
+```
 
-# 2. Install dependencies
+Install dependencies:
+
+```bash
 npm install
+```
 
-# 3. Start high-frequency simulation dev server (Port 3000)
+Start the development terminal:
+
+```bash
 npm run dev
+```
 
-# 4. Run production build
+Build the application:
+
+```bash
 npm run build
+```
 
-# 5. Execute TypeScript linting & type checks
+Run TypeScript checks:
+
+```bash
 npm run lint
 ```
 
-### Controls & Navigation
-* **Space / Play Button**: Toggle continuous simulation loop.
-* **Step Button**: Advance market simulation by a single discrete event tick ($\Delta t$).
-* **Reset Button**: Re-initialize order book, generate fresh seed prices, and reset agent parent order.
-* **Engine Selector**: Switch live inference between **PPO RL Agent**, **Deterministic TWAP**, **VWAP Slicer**, and **Immediate Taker**.
-* **Benchmark Modal**: Run 5,000–50,000 live forward passes on your CPU to generate empirical latency distributions.
-* **C++ Architecture Modal**: Inspect header files, zero-allocation memory layouts, and SIMD intrinsics.
+Run the project benchmark command:
+
+```bash
+npm run test:benchmark
+```
 
 ---
 
-## License
+# 19. Native C++20 Build
 
-Distributed under the **MIT License**. See `LICENSE` for details.
+## Portable Release
+
+```bash
+cmake -S cpp \
+  -B cpp/build \
+  -DCMAKE_BUILD_TYPE=Release
+
+cmake --build cpp/build --parallel
+```
+
+Run tests:
+
+```bash
+./cpp/build/hft_test
+```
+
+Run benchmark:
+
+```bash
+./cpp/build/hft_benchmark
+```
+
+---
+
+## Native Host-Optimized Build
+
+```bash
+cmake -S cpp \
+  -B cpp/build_native \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_NATIVE_OPT=ON
+
+cmake --build cpp/build_native --parallel
+```
+
+This build uses:
+
+```text
+-O3
+-march=native
+```
+
+and is therefore host-specific.
+
+---
+
+# 20. Sanitizer Build
+
+For correctness validation:
+
+```bash
+cmake -S cpp \
+  -B cpp/build_sanitize \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DENABLE_SANITIZERS=ON
+
+cmake --build cpp/build_sanitize --parallel
+
+./cpp/build_sanitize/hft_test
+```
+
+Sanitizers are not used for official performance numbers.
+
+---
+
+# 21. Benchmark Reproducibility
+
+The benchmark result artifact is stored at:
+
+```text
+cpp/benchmarks/latest.txt
+```
+
+The artifact records:
+
+```text
+CPU
+Operating system
+Compiler
+C++ standard
+Optimization flags
+Architecture flags
+Warm-up iterations
+Measured iterations
+Clock source
+Percentiles
+Throughput
+Allocation counters
+```
+
+The official portable benchmark uses:
+
+```text
+100,000 measured iterations
+1,000 warm-up iterations
+std::chrono::steady_clock
+```
+
+Three consecutive benchmark runs were used for representative metrics.
+
+---
+
+# 22. Current Verification Gates
+
+```text
+cmake --build cpp/build
+        PASSED
+
+Native Correctness Suite
+        88 / 88 assertions PASSED
+
+ASan + UBSan
+        0 errors
+        0 leaks
+
+npm run lint
+        PASSED
+        0 TypeScript errors
+
+npm run build
+        PASSED
+        clean production bundle
+
+npm run test:benchmark
+        PASSED
+```
+
+---
+
+# 23. Current Native Performance Snapshot
+
+```text
+Portable Release (-O3)
+
+p50:        3,280 ns
+p90:        3,289 ns
+p99:        6,634 ns
+p99.9:     11,208 ns
+
+Mean:
+3,392.3 ns
+(median of per-run means)
+
+Throughput:
+290,396 inferences/sec
+```
+
+Optional host optimization:
+
+```text
+-march=native
+
+p50:
+3,136 ns
+
+Throughput:
+307,423 inferences/sec
+```
+
+No instrumented global new/delete activity was observed during the measured hot path.
+
+---
+
+# 24. Remaining Limitations
+
+### Single-threaded hot path
+
+The matching engine and policy currently execute sequentially on one thread.
+
+Parallel multi-venue execution would require additional concurrency architecture and should only be introduced when justified by workload and measurement.
+
+### Synthetic market dynamics
+
+The simulator uses seeded stochastic market dynamics rather than historical ITCH/OUCH packet captures.
+
+This makes the environment reproducible and controllable, but it is not a claim of historical market realism.
+
+### Browser versus native timing
+
+Browser/WebAssembly timing and native C++ timing use different runtimes and measurement mechanisms.
+
+They are reported separately.
+
+### Hardware-specific results
+
+The benchmark numbers are measurements from the specified host environment and are not universal guarantees.
+
+### Compiler vectorization
+
+The neural policy currently relies on compact unrolled loops to expose instruction-level parallelism.
+
+Compiler-generated SIMD is treated as an implementation detail unless verified separately.
+
+---
+
+# 25. Engineering Philosophy
+
+The project intentionally prioritizes:
+
+```text
+Correctness
+    ↓
+Determinism
+    ↓
+Measured Performance
+    ↓
+Memory Discipline
+    ↓
+Observable Execution
+    ↓
+Visual Clarity
+```
+
+Performance claims are only published when they can be reproduced from the actual benchmark.
+
+UI animation is treated as presentation logic and is never confused with native engine performance.
+
+---
+
+# License
+
+Distributed under the MIT License.
+
+See:
+
+```text
+LICENSE
+```
